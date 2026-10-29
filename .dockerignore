@@ -1,0 +1,14 @@
+node_modules
+dist
+.astro
+.git
+.env
+*.md
+terraform
+comments-api
+lambda-src
+docs
+scripts
+*.sh
+*.ps1
+

@@ -1,0 +1,23 @@
+---
+title: "The shape of a good debug log"
+description: "Logs become useful when they preserve the question that caused someone to look for them in the first place."
+published: 2026-07-18
+tags: ["engineering", "debugging"]
+readingTime: "4 min read"
+---
+
+> “A log line is a message to someone who has arrived late.”
+
+The best diagnostic output is an argument for what happened. It carries enough context to let a future reader rebuild the situation, without making them excavate a mountain of unrelated facts.
+
+## Make the event recognizable
+
+Start with the operation, then the subject, then the outcome. Identifiers are useful only after the reader knows what they identify.
+
+```txt
+cache.refresh  user=42  outcome=miss  source=profile-api  elapsed=126ms
+```
+
+## Preserve the boundary
+
+Most production failures happen at a boundary: one system assumes a shape, another system returns a different one. A good log records the boundary and the decision taken there.

@@ -1,0 +1,131 @@
+---
+// Submits email to API Gateway -> Lambda newsletter signup
+const apiUrl = process.env.NEWSLETTER_API_URL ?? "";
+---
+
+<aside class="newsletter-block" aria-labelledby="newsletter-title">
+  <div class="newsletter-header">
+    <h3 id="newsletter-title">Stay in the loop</h3>
+    <span class="badge">API Gateway + SQS + Lambda</span>
+  </div>
+  <p class="newsletter-desc">
+    Get new essays directly to your inbox. Handled entirely serverless: API Gateway triggers Lambda, stores subscriber in DynamoDB, and enqueues an SQS welcome message.
+  </p>
+  <form id="newsletter-form" class="newsletter-form">
+    <div class="input-row">
+      <input
+        type="email"
+        name="email"
+        placeholder="you@domain.com"
+        required
+        autocomplete="email"
+      />
+      <button type="submit">Subscribe</button>
+    </div>
+    <p id="newsletter-status" class="status" role="status"></p>
+  </form>
+</aside>
+
+<script define:vars={{ apiUrl }}>
+  const form = document.getElementById("newsletter-form");
+  const status = document.getElementById("newsletter-status");
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const email = data.get("email");
+
+    if (!apiUrl) {
+      status.textContent = "Newsletter service is initializing...";
+      return;
+    }
+
+    status.textContent = "Subscribing...";
+    try {
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Subscription failed");
+      status.textContent = "Subscribed! Welcome message queued.";
+      form.reset();
+      setTimeout(() => (status.textContent = ""), 4000);
+    } catch (err) {
+      status.textContent = err.message || "Could not complete signup. Try again later.";
+    }
+  });
+</script>
+
+<style>
+  .newsletter-block {
+    margin: 3rem 0;
+    padding: 1.5rem;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    border-radius: 8px;
+  }
+  .newsletter-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .newsletter-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+  .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--surface-strong, #262626);
+    color: var(--green, #42be65);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--line, #393939);
+  }
+  .newsletter-desc {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    margin: 0.5rem 0 1.25rem;
+    line-height: 1.4;
+  }
+  .input-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  input {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    background: var(--bg, #161616);
+    border: 1px solid var(--line, #393939);
+    border-radius: 6px;
+    color: var(--ink, #f4f4f4);
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--blue, #78a9ff);
+  }
+  button {
+    padding: 0.6rem 1.25rem;
+    background: var(--ink, #f4f4f4);
+    color: var(--bg, #161616);
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover {
+    filter: brightness(0.9);
+  }
+  .status {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+  }
+</style>

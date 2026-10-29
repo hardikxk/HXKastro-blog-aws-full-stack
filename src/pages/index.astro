@@ -1,0 +1,179 @@
+---
+import { getCollection } from "astro:content";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import NewsletterForm from "../components/NewsletterForm.astro";
+import { SITE_NAME, SITE_DESCRIPTION } from "../consts";
+import { listPosts } from "../lib/dynamo.js";
+
+export const prerender = false;
+
+// 1. Static MDX posts bundled with the code
+const mdxPosts = (await getCollection("posts", ({ data }) => !data.draft)).map((p) => ({
+  slug: p.id,
+  title: p.data.title,
+  description: p.data.description,
+  published: p.data.published.toISOString(),
+  tags: p.data.tags || [],
+  source: "mdx",
+}));
+
+// 2. Dynamic posts fetched from DynamoDB
+const ddbPosts = (await listPosts()).map((p) => ({
+  slug: p.slug,
+  title: p.title,
+  description: p.description,
+  published: p.published,
+  tags: p.tags || [],
+  source: "dynamodb",
+}));
+
+// Combine and deduplicate by slug (DynamoDB post overrides if matching slug)
+const postMap = new Map();
+for (const p of mdxPosts) {
+  postMap.set(p.slug, p);
+}
+for (const p of ddbPosts) {
+  postMap.set(p.slug, p);
+}
+
+const allPosts = Array.from(postMap.values()).sort(
+  (a, b) => new Date(b.published).valueOf() - new Date(a.published).valueOf()
+);
+---
+
+<BaseLayout title={`${SITE_NAME} - Notes & Writings`}>
+  <section class="home-index" aria-labelledby="home-title">
+    <div class="hero-section">
+      <h1 id="home-title">{SITE_NAME}</h1>
+      <p class="subtitle">{SITE_DESCRIPTION}</p>
+      <div class="architecture-pills">
+        <span class="pill pill-ec2">AWS EC2 (ASG)</span>
+        <span class="pill pill-dynamo">DynamoDB</span>
+        <span class="pill pill-fargate">ECS Fargate</span>
+        <span class="pill pill-serverless">Lambda &times; 3</span>
+      </div>
+    </div>
+
+    <div class="posts-header">
+      <h2>Recent Notes</h2>
+      <a href="/admin" class="admin-link">Admin &rarr;</a>
+    </div>
+
+    <nav aria-label="Blog posts">
+      <ul class="posts-list">
+        {allPosts.map((post) => (
+          <li class="post-item">
+            <a href={`/posts/${post.slug}`} class="post-link">
+              <span class="post-title">{post.title}</span>
+              <span class="post-date">
+                {new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(post.published))}
+              </span>
+            </a>
+            {post.description && <p class="post-summary">{post.description}</p>}
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <NewsletterForm />
+  </section>
+</BaseLayout>
+
+<style>
+  .home-index {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+  .hero-section {
+    margin-bottom: 3rem;
+  }
+  h1 {
+    font-size: 2.25rem;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    font-size: 1.1rem;
+    color: var(--muted, #c6c6c6);
+    margin: 0 0 1.25rem;
+  }
+  .architecture-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .pill {
+    font-size: 0.72rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-weight: 500;
+    border: 1px solid var(--line, #393939);
+    background: var(--surface, #1f1f1f);
+  }
+  .pill-ec2 { color: #ff9900; }
+  .pill-dynamo { color: #527fff; }
+  .pill-fargate { color: #78a9ff; }
+  .pill-serverless { color: #ff7eb6; }
+
+  .posts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--line, #393939);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .posts-header h2 {
+    font-size: 1.25rem;
+    margin: 0;
+  }
+  .admin-link {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    text-decoration: none;
+  }
+  .admin-link:hover {
+    color: var(--blue, #78a9ff);
+  }
+  .posts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+  .post-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .post-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    text-decoration: none;
+    gap: 1rem;
+  }
+  .post-title {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: var(--ink, #f4f4f4);
+    transition: color 0.15s;
+  }
+  .post-link:hover .post-title {
+    color: var(--blue, #78a9ff);
+  }
+  .post-date {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    white-space: nowrap;
+  }
+  .post-summary {
+    font-size: 0.9rem;
+    color: var(--muted, #8d8d8d);
+    margin: 0.25rem 0 0;
+    line-height: 1.4;
+  }
+</style>

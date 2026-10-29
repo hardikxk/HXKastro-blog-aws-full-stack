@@ -1,0 +1,21 @@
+---
+import { NAVIGATION, SITE_NAME, SITE_TITLE, USERNAME } from "../consts";
+const path = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="wordmark" href="/" aria-label={`${SITE_TITLE}, home`}>
+      <span class="wordmark-mark" aria-hidden="true">✦</span>
+      <span><b>{SITE_NAME}</b><em>{USERNAME}</em></span>
+    </a>
+    <nav aria-label="Primary navigation">
+      {NAVIGATION.map((item) => (
+        <a href={item.href} aria-current={path === item.href ? "page" : undefined}>{item.label}</a>
+      ))}
+    </nav>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+      <span class="theme-sun" aria-hidden="true">☼</span><span class="theme-moon" aria-hidden="true">☾</span>
+    </button>
+  </div>
+</header>

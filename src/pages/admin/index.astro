@@ -1,0 +1,600 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const region = process.env.AWS_REGION ?? "us-east-1";
+const clientId = process.env.COGNITO_CLIENT_ID ?? "";
+---
+
+<BaseLayout title="Admin Portal - Hardik Kumar">
+  <div class="admin-container">
+    <!-- Unauthenticated: Login Card -->
+    <div id="login-box" class="admin-box">
+      <header class="admin-header">
+        <span class="badge">Amazon Cognito</span>
+        <h1>Admin Portal</h1>
+        <p>Log in with your Cognito User Pool credentials to manage and publish blog posts.</p>
+      </header>
+
+      <form id="login-form">
+        <div class="field">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required autocomplete="username" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" id="login-btn">Log in</button>
+      </form>
+
+      <p id="login-status" role="status"></p>
+
+      <div class="admin-hint">
+        <strong>First time setup?</strong>
+        <p>Create an admin user from your terminal using AWS CLI:</p>
+        <code>aws cognito-idp admin-create-user --user-pool-id &lt;pool-id&gt; --username admin --user-attributes Name=email,Value=you@domain.com</code>
+        <code>aws cognito-idp admin-set-user-password --user-pool-id &lt;pool-id&gt; --username admin --password "YourPass123!" --permanent</code>
+      </div>
+    </div>
+
+    <!-- Authenticated: Admin Management Dashboard -->
+    <div id="dashboard-box" class="dashboard-box" style="display: none;">
+      <header class="dashboard-header">
+        <div>
+          <span class="badge">Admin Session Active</span>
+          <h1>Admin Dashboard</h1>
+          <p>Manage existing blog posts or publish new content.</p>
+        </div>
+        <div class="dashboard-actions">
+          <a href="/admin/new" class="btn-primary">✍️ Write New Post</a>
+          <button type="button" id="logout-btn" class="btn-secondary">Log out</button>
+        </div>
+      </header>
+
+      <div class="posts-management">
+        <div class="section-title-bar">
+          <h2>Published Posts</h2>
+          <button id="refresh-posts-btn" class="btn-refresh" title="Refresh posts">🔄 Refresh</button>
+        </div>
+        <p id="mgmt-status" class="status-msg"></p>
+
+        <div id="posts-list-container">
+          <div id="loading-spinner" class="loading-state">Loading posts from DynamoDB...</div>
+          <table id="posts-table" class="posts-table" style="display: none;">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Slug</th>
+                <th>Published</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="posts-table-body"></tbody>
+          </table>
+          <div id="empty-state" class="empty-state" style="display: none;">
+            <p>No dynamic posts found in DynamoDB.</p>
+            <a href="/admin/new" class="btn-primary">Create your first post</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script define:vars={{ region, clientId }}>
+  const loginBox = document.getElementById("login-box");
+  const dashboardBox = document.getElementById("dashboard-box");
+  const loginForm = document.getElementById("login-form");
+  const loginStatus = document.getElementById("login-status");
+  const logoutBtn = document.getElementById("logout-btn");
+  const refreshBtn = document.getElementById("refresh-posts-btn");
+  const postsTable = document.getElementById("posts-table");
+  const postsTableBody = document.getElementById("posts-table-body");
+  const loadingSpinner = document.getElementById("loading-spinner");
+  const emptyState = document.getElementById("empty-state");
+  const mgmtStatus = document.getElementById("mgmt-status");
+
+  function getStoredToken() {
+    return sessionStorage.getItem("idToken");
+  }
+
+  function setView(isLoggedIn) {
+    if (isLoggedIn) {
+      if (loginBox) loginBox.style.display = "none";
+      if (dashboardBox) dashboardBox.style.display = "block";
+      loadPosts();
+    } else {
+      if (loginBox) loginBox.style.display = "block";
+      if (dashboardBox) dashboardBox.style.display = "none";
+    }
+  }
+
+  // Initial check
+  const existingToken = getStoredToken();
+  if (existingToken) {
+    setView(true);
+  } else {
+    setView(false);
+  }
+
+  // Logout handler
+  logoutBtn?.addEventListener("click", () => {
+    sessionStorage.removeItem("idToken");
+    setView(false);
+  });
+
+  // Refresh handler
+  refreshBtn?.addEventListener("click", () => {
+    loadPosts();
+  });
+
+  // Login submission
+  loginForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!clientId) {
+      loginStatus.textContent = "Cognito Client ID not configured. Ensure COGNITO_CLIENT_ID environment variable is set.";
+      return;
+    }
+
+    const data = new FormData(loginForm);
+    loginStatus.textContent = "Authenticating with Cognito...";
+
+    try {
+      const res = await fetch(`https://cognito-idp.${region}.amazonaws.com/`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-amz-json-1.1",
+          "x-amz-target": "AWSCognitoIdentityProviderService.InitiateAuth",
+        },
+        body: JSON.stringify({
+          AuthFlow: "USER_PASSWORD_AUTH",
+          ClientId: clientId,
+          AuthParameters: {
+            USERNAME: data.get("username"),
+            PASSWORD: data.get("password"),
+          },
+        }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok || !payload.AuthenticationResult) {
+        loginStatus.textContent = payload.message || "Invalid credentials.";
+        return;
+      }
+
+      sessionStorage.setItem("idToken", payload.AuthenticationResult.IdToken);
+      loginStatus.textContent = "";
+      setView(true);
+    } catch (err) {
+      loginStatus.textContent = "Network error connecting to Cognito. Check connection.";
+    }
+  });
+
+  // Load posts for management
+  async function loadPosts() {
+    if (loadingSpinner) loadingSpinner.style.display = "block";
+    if (postsTable) postsTable.style.display = "none";
+    if (emptyState) emptyState.style.display = "none";
+    if (mgmtStatus) mgmtStatus.textContent = "";
+
+    try {
+      const res = await fetch("/api/posts");
+      if (!res.ok) throw new Error("Failed to fetch posts");
+      const posts = await res.json();
+
+      if (loadingSpinner) loadingSpinner.style.display = "none";
+
+      if (!Array.isArray(posts) || posts.length === 0) {
+        if (emptyState) emptyState.style.display = "block";
+        return;
+      }
+
+      if (postsTableBody) {
+        postsTableBody.innerHTML = "";
+        posts.forEach((post) => {
+          const row = document.createElement("tr");
+          row.id = `post-row-${post.slug}`;
+          const formattedDate = post.published
+            ? new Date(post.published).toLocaleDateString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : "Unknown";
+
+          row.innerHTML = `
+            <td>
+              <strong class="post-title">${escapeHtml(post.title || post.slug)}</strong>
+              ${post.description ? `<p class="post-desc">${escapeHtml(post.description)}</p>` : ""}
+            </td>
+            <td><code class="slug-badge">${escapeHtml(post.slug)}</code></td>
+            <td class="date-cell">${formattedDate}</td>
+            <td style="text-align: right; white-space: nowrap;">
+              <a href="/posts/${encodeURIComponent(post.slug)}" target="_blank" class="action-btn view-btn">View ↗</a>
+              <button class="action-btn delete-btn" data-slug="${escapeHtml(post.slug)}" data-title="${escapeHtml(post.title || post.slug)}">🗑️ Delete</button>
+            </td>
+          `;
+          postsTableBody.appendChild(row);
+        });
+
+        // Attach delete listeners
+        postsTableBody.querySelectorAll(".delete-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const slug = btn.getAttribute("data-slug");
+            const title = btn.getAttribute("data-title");
+            handleDeletePost(slug, title, btn);
+          });
+        });
+
+        if (postsTable) postsTable.style.display = "table";
+      }
+    } catch (err) {
+      if (loadingSpinner) loadingSpinner.style.display = "none";
+      if (mgmtStatus) {
+        mgmtStatus.textContent = "Error loading posts: " + err.message;
+        mgmtStatus.className = "status-msg error";
+      }
+    }
+  }
+
+  async function handleDeletePost(slug, title, buttonEl) {
+    const token = getStoredToken();
+    if (!token) {
+      alert("Session expired. Please log in again.");
+      setView(false);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${title}"?\n\nThis will permanently delete it from DynamoDB.`)) {
+      return;
+    }
+
+    const originalText = buttonEl.textContent;
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Deleting...";
+
+    try {
+      const res = await fetch("/api/posts", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ slug }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to delete post");
+      }
+
+      // Remove row smoothly
+      const row = document.getElementById(`post-row-${slug}`);
+      if (row) {
+        row.remove();
+      }
+
+      if (mgmtStatus) {
+        mgmtStatus.textContent = `Successfully deleted "${title}".`;
+        mgmtStatus.className = "status-msg success";
+        setTimeout(() => {
+          if (mgmtStatus) mgmtStatus.textContent = "";
+        }, 5000);
+      }
+
+      // If no rows left, show empty state
+      if (postsTableBody && postsTableBody.children.length === 0) {
+        if (postsTable) postsTable.style.display = "none";
+        if (emptyState) emptyState.style.display = "block";
+      }
+    } catch (err) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = originalText;
+      alert(`Delete error: ${err.message}`);
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+</script>
+
+<style>
+  .admin-container {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+
+  /* Login Box */
+  .admin-box {
+    max-width: 480px;
+    margin: 2rem auto;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    border-radius: 8px;
+    padding: 2rem;
+  }
+  .admin-header {
+    margin-bottom: 2rem;
+  }
+  .admin-header h1 {
+    font-size: 1.5rem;
+    margin: 0.5rem 0 0.25rem;
+  }
+  .admin-header p {
+    color: var(--muted, #8d8d8d);
+    font-size: 0.9rem;
+    margin: 0;
+  }
+  .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--surface-strong, #262626);
+    color: var(--yellow, #ffe97b);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--line, #393939);
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  label {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+  }
+  input {
+    padding: 0.65rem 0.85rem;
+    background: var(--bg, #161616);
+    border: 1px solid var(--line, #393939);
+    border-radius: 6px;
+    color: var(--ink, #f4f4f4);
+    font-size: 0.95rem;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--blue, #78a9ff);
+  }
+  button[type="submit"] {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: var(--blue, #78a9ff);
+    color: #161616;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button[type="submit"]:hover {
+    filter: brightness(1.1);
+  }
+  #login-status {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: var(--pink, #ff7eb6);
+  }
+  .admin-hint {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line, #393939);
+    font-size: 0.8rem;
+    color: var(--muted, #8d8d8d);
+  }
+  .admin-hint code {
+    display: block;
+    background: var(--bg, #161616);
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    margin-top: 0.4rem;
+  }
+
+  /* Dashboard Box */
+  .dashboard-box {
+    width: 100%;
+  }
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--line, #393939);
+    margin-bottom: 2rem;
+  }
+  .dashboard-header h1 {
+    font-size: 1.8rem;
+    margin: 0.4rem 0 0.2rem;
+  }
+  .dashboard-header p {
+    color: var(--muted, #8d8d8d);
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  .dashboard-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--blue, #78a9ff);
+    color: #161616;
+    font-weight: 600;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: opacity 0.2s;
+  }
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    color: var(--ink, #f4f4f4);
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .btn-secondary:hover {
+    background: var(--surface-strong, #262626);
+  }
+  .btn-refresh {
+    background: none;
+    border: 1px solid var(--line, #393939);
+    color: var(--muted, #8d8d8d);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .btn-refresh:hover {
+    color: var(--ink, #f4f4f4);
+    background: var(--surface, #1f1f1f);
+  }
+
+  .section-title-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .section-title-bar h2 {
+    font-size: 1.25rem;
+    margin: 0;
+  }
+  .status-msg {
+    margin: 0.5rem 0 1rem;
+    font-size: 0.9rem;
+  }
+  .status-msg.success {
+    color: #4ade80;
+  }
+  .status-msg.error {
+    color: var(--pink, #ff7eb6);
+  }
+
+  /* Posts Table */
+  .posts-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .posts-table th {
+    text-align: left;
+    padding: 0.85rem 1rem;
+    background: var(--surface-strong, #262626);
+    border-bottom: 1px solid var(--line, #393939);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted, #8d8d8d);
+  }
+  .posts-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--line, #393939);
+    vertical-align: middle;
+  }
+  .posts-table tr:last-child td {
+    border-bottom: none;
+  }
+  .posts-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .post-title {
+    display: block;
+    color: var(--ink, #f4f4f4);
+    font-size: 0.95rem;
+  }
+  .post-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted, #8d8d8d);
+  }
+  .slug-badge {
+    background: var(--bg, #161616);
+    border: 1px solid var(--line, #393939);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--blue, #78a9ff);
+  }
+  .date-cell {
+    color: var(--muted, #8d8d8d);
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  /* Actions in table */
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    margin-left: 0.5rem;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .view-btn {
+    background: var(--surface-strong, #262626);
+    border-color: var(--line, #393939);
+    color: var(--ink, #f4f4f4);
+  }
+  .view-btn:hover {
+    background: #333;
+  }
+  .delete-btn {
+    background: rgba(255, 126, 182, 0.1);
+    color: var(--pink, #ff7eb6);
+    border-color: rgba(255, 126, 182, 0.3);
+  }
+  .delete-btn:hover {
+    background: rgba(255, 126, 182, 0.2);
+    border-color: var(--pink, #ff7eb6);
+  }
+  .delete-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .loading-state, .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    border-radius: 8px;
+    color: var(--muted, #8d8d8d);
+  }
+  .empty-state p {
+    margin-bottom: 1.5rem;
+  }
+</style>

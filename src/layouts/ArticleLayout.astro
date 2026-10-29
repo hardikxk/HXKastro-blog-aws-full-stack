@@ -1,0 +1,99 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import ReadingOutline from "../components/ReadingOutline.astro";
+import { SITE_NAME } from "../consts";
+
+interface Heading { depth: number; slug: string; text: string; }
+interface PostData {
+  title: string; description: string; published: Date; updated?: Date; tags: string[];
+  readingTime: string; hero?: string;
+}
+type Neighbor = { id: string; data: { title: string } } | undefined;
+interface Props { post: { data: PostData }; headings: Heading[]; previousPost?: Neighbor; nextPost?: Neighbor; }
+const { post, headings, previousPost, nextPost } = Astro.props;
+const { title, description, published, tags, readingTime, hero } = post.data;
+const publication = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(published);
+---
+
+<BaseLayout title={`${title} · ${SITE_NAME}`} description={description}>
+  <div class="article-shell" data-reading-page>
+    <ReadingOutline headings={headings} title={title} />
+
+    <article class="prose" data-article>
+      <header class="article-header">
+        <p class="eyebrow">{tags.join(" · ")}</p>
+        <h1>{title}</h1>
+        <p class="deck">{description}</p>
+        <div class="article-meta"><time datetime={published.toISOString()}>{publication}</time><span>·</span><span>{readingTime}</span></div>
+        <div class="article-progress" aria-label="Reading progress"><span>Reading</span><b><i data-inline-progress></i></b></div>
+      </header>
+      {hero && <img class="article-hero" src={hero} alt="" loading="eager" fetchpriority="high" />}
+      <slot />
+      <footer class="article-footer" data-swipe-navigation data-previous={previousPost ? `/posts/${previousPost.id}` : ""} data-next={nextPost ? `/posts/${nextPost.id}` : ""}>
+        <p>End of this note.</p>
+        <div class="article-neighbors">
+          {previousPost ? <a href={`/posts/${previousPost.id}`}><small>← Previous</small>{previousPost.data.title}</a> : <span />}
+          {nextPost ? <a class="next" href={`/posts/${nextPost.id}`}><small>Next →</small>{nextPost.data.title}</a> : <span />}
+        </div>
+      </footer>
+      <section class="contact-card" aria-labelledby="contact-card-title">
+        <div>
+          <h2 id="contact-card-title">message me.</h2>
+        </div>
+        <div class="contact-links">
+          <a href="mailto:hardikxk@gmail.com" aria-label="Email Hardik Kumar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 5.75h16.5v12.5H3.75zM4.5 6.5 12 12l7.5-5.5" /></svg>
+            <span>hardikxk@gmail.com</span>
+          </a>
+          <a href="https://x.com/hardikxk" target="_blank" rel="noreferrer" aria-label="Follow Hardik Kumar on X">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5 18.5 19.5M18.5 4.5 5 19.5" /></svg>
+            <span>@hardikxk</span>
+          </a>
+        </div>
+      </section>
+    </article>
+  </div>
+  <script>
+    const article = document.querySelector<HTMLElement>("[data-article]");
+    const outline = document.querySelector<HTMLElement>("[data-reading-outline]");
+    const inlineProgress = document.querySelector<HTMLElement>("[data-inline-progress]");
+    const fill = outline?.querySelector<HTMLElement>("[data-progress-fill]");
+    const label = outline?.querySelector<HTMLElement>("[data-progress-label]");
+    const links = [...document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]")];
+    const updateProgress = () => {
+      if (!article) return;
+      const rect = article.getBoundingClientRect();
+      const total = Math.max(article.offsetHeight - innerHeight * 0.55, 1);
+      const progress = Math.min(100, Math.max(0, (-rect.top + innerHeight * 0.22) / total * 100));
+      const value = `${progress.toFixed(1)}%`;
+      if (fill) fill.style.inlineSize = value;
+      if (inlineProgress) inlineProgress.style.inlineSize = value;
+      if (label) label.textContent = `${Math.round(progress)}%`;
+    };
+
+    updateProgress();
+    addEventListener("scroll", updateProgress, { passive: true });
+    addEventListener("resize", updateProgress, { passive: true });
+
+    const headings = [...document.querySelectorAll<HTMLElement>("article h2[id], article h3[id]")];
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!visible) return;
+      links.forEach((link) => link.classList.toggle("is-active", link.dataset.tocLink === visible.target.id));
+    }, { rootMargin: "-20% 0px -70% 0px", threshold: 0 });
+    headings.forEach((heading) => observer.observe(heading));
+
+    const swipe = document.querySelector<HTMLElement>("[data-swipe-navigation]");
+    let startX = 0;
+    let startY = 0;
+    swipe?.addEventListener("touchstart", (event) => { const touch = event.changedTouches[0]; startX = touch.screenX; startY = touch.screenY; }, { passive: true });
+    swipe?.addEventListener("touchend", (event) => {
+      const touch = event.changedTouches[0];
+      const dx = touch.screenX - startX;
+      const dy = touch.screenY - startY;
+      if (Math.abs(dx) < 110 || Math.abs(dy) > 70 || window.getSelection()?.toString()) return;
+      const url = dx > 0 ? swipe.dataset.previous : swipe.dataset.next;
+      if (url) window.location.assign(url);
+    }, { passive: true });
+  </script>
+</BaseLayout>

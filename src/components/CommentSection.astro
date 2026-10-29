@@ -1,0 +1,207 @@
+---
+// Render comments fetched from the decoupled Fargate microservice (/api/comments)
+interface Props {
+  postId: string;
+}
+
+const { postId } = Astro.props;
+---
+
+<section class="comments-section" data-post-id={postId} aria-labelledby="comments-title">
+  <div class="comments-header">
+    <h3 id="comments-title">Discussion</h3>
+    <span class="badge">AWS Fargate API</span>
+  </div>
+  <p class="comments-desc">
+    Comments are hosted on a decoupled ECS Fargate container and saved to DynamoDB.
+  </p>
+
+  <div class="comments-list" id="comments-container">
+    <p class="loading-state">Loading comments...</p>
+  </div>
+
+  <form class="comment-form" id="comment-form">
+    <h4>Leave a thought</h4>
+    <div class="field-group">
+      <input type="text" name="author" placeholder="Your name (optional)" />
+    </div>
+    <div class="field-group">
+      <textarea name="body" rows="3" placeholder="Share your perspective or feedback..." required></textarea>
+    </div>
+    <button type="submit" class="submit-btn" id="comment-submit">Post Comment</button>
+    <p id="comment-status" class="status-msg"></p>
+  </form>
+</section>
+
+<script define:vars={{ postId }}>
+  const container = document.getElementById("comments-container");
+  const form = document.getElementById("comment-form");
+  const status = document.getElementById("comment-status");
+
+  async function loadComments() {
+    try {
+      const res = await fetch(`/api/comments?postId=${encodeURIComponent(postId)}`);
+      if (!res.ok) throw new Error("Could not fetch comments");
+      const comments = await res.json();
+      if (!comments.length) {
+        container.innerHTML = '<p class="empty-state">No comments yet. Be the first to share a thought!</p>';
+        return;
+      }
+      container.innerHTML = comments
+        .map((c) => `
+          <article class="comment-card">
+            <header class="comment-meta">
+              <strong>${escapeHtml(c.author || "Anonymous")}</strong>
+              <time datetime="${c.createdAt}">${new Date(c.createdAt).toLocaleDateString()}</time>
+            </header>
+            <p class="comment-body">${escapeHtml(c.body)}</p>
+          </article>
+        `)
+        .join("");
+    } catch (e) {
+      container.innerHTML = '<p class="empty-state">Comments service currently offline or starting up.</p>';
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const author = data.get("author");
+    const body = data.get("body");
+    status.textContent = "Posting...";
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, author, body }),
+      });
+      if (!res.ok) throw new Error("Failed to post comment");
+      form.reset();
+      status.textContent = "Comment posted!";
+      loadComments();
+      setTimeout(() => (status.textContent = ""), 3000);
+    } catch (err) {
+      status.textContent = "Error submitting comment. Please try again.";
+    }
+  });
+
+  loadComments();
+</script>
+
+<style>
+  .comments-section {
+    margin-top: 3.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--line, #393939);
+  }
+  .comments-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .comments-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--surface-strong, #262626);
+    color: var(--blue, #78a9ff);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--line, #393939);
+  }
+  .comments-desc {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    margin: 0.35rem 0 1.5rem;
+  }
+  .comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .comment-card {
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #333);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+  .comment-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    margin-bottom: 0.4rem;
+  }
+  .comment-body {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--ink, #f4f4f4);
+  }
+  .empty-state, .loading-state {
+    font-size: 0.9rem;
+    color: var(--muted, #8d8d8d);
+    font-style: italic;
+  }
+  .comment-form {
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #333);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+  .comment-form h4 {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+  }
+  .field-group {
+    margin-bottom: 0.75rem;
+  }
+  input, textarea {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    background: var(--bg, #161616);
+    border: 1px solid var(--line, #393939);
+    border-radius: 6px;
+    color: var(--ink, #f4f4f4);
+    font-family: inherit;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--blue, #78a9ff);
+  }
+  .submit-btn {
+    padding: 0.5rem 1.2rem;
+    background: var(--blue, #78a9ff);
+    color: #161616;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .submit-btn:hover {
+    filter: brightness(1.1);
+  }
+  .status-msg {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+  }
+</style>

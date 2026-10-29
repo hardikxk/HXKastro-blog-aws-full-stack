@@ -1,0 +1,163 @@
+---
+import { getCollection, render } from "astro:content";
+import ArticleLayout from "../../layouts/ArticleLayout.astro";
+import CommentSection from "../../components/CommentSection.astro";
+import { getPost, incrementViews } from "../../lib/dynamo.js";
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect("/404");
+}
+
+// 1. Try to find post in local MDX collection
+const mdxPosts = (await getCollection("posts", ({ data }) => !data.draft)).sort(
+  (a, b) => a.data.published.valueOf() - b.data.published.valueOf()
+);
+const mdxIndex = mdxPosts.findIndex((p) => p.id === slug);
+
+let postItem = null;
+let headings = [];
+let RenderedComponent = null;
+let rawBodyHtml = null;
+let previousPost = undefined;
+let nextPost = undefined;
+
+if (mdxIndex !== -1) {
+  const mdxPost = mdxPosts[mdxIndex];
+  previousPost = mdxPosts[mdxIndex - 1];
+  nextPost = mdxPosts[mdxIndex + 1];
+  const rendered = await render(mdxPost);
+  RenderedComponent = rendered.Content;
+  headings = rendered.headings;
+  postItem = {
+    data: {
+      title: mdxPost.data.title,
+      description: mdxPost.data.description,
+      published: mdxPost.data.published,
+      updated: mdxPost.data.updated,
+      tags: mdxPost.data.tags,
+      readingTime: mdxPost.data.readingTime,
+      hero: mdxPost.data.hero,
+    },
+  };
+} else {
+  // 2. Try to fetch from DynamoDB
+  const ddbPost = await getPost(slug);
+  if (ddbPost) {
+    postItem = {
+      data: {
+        title: ddbPost.title,
+        description: ddbPost.description,
+        published: new Date(ddbPost.published),
+        tags: ddbPost.tags || ["notes"],
+        readingTime: ddbPost.readingTime || "5 min read",
+      },
+    };
+    rawBodyHtml = ddbPost.body;
+  }
+}
+
+if (!postItem) {
+  return Astro.redirect("/404");
+}
+
+// Increment DynamoDB view counter
+await incrementViews(slug);
+---
+
+<ArticleLayout post={postItem} headings={headings} previousPost={previousPost} nextPost={nextPost}>
+  {RenderedComponent ? (
+    <RenderedComponent />
+  ) : (
+    <div class="dynamo-body" set:html={
+      rawBodyHtml
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" style="max-width:100%;border-radius:8px;margin:1rem 0;" />')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .split("\n\n")
+        .map(p => p.trim())
+        .filter(Boolean)
+        .map(p => p.startsWith('<img') ? p : `<p>${p}</p>`)
+        .join("\n")
+    } />
+  )}
+
+  <!-- Decoupled ECS Fargate Comments Microservice -->
+  <CommentSection postId={slug} />
+
+  <!-- Admin-only delete button (visible only when logged in) -->
+  <div id="admin-actions" class="admin-actions" style="display:none;">
+    <button id="delete-post-btn" class="delete-btn">🗑️ Delete this post</button>
+    <span id="delete-status"></span>
+  </div>
+</ArticleLayout>
+
+<script define:vars={{ slug }}>
+  // Show delete button only if admin is logged in (has Cognito token)
+  const token = sessionStorage.getItem("idToken");
+  if (token) {
+    const el = document.getElementById("admin-actions");
+    if (el) el.style.display = "flex";
+
+    document.getElementById("delete-post-btn")?.addEventListener("click", async () => {
+      if (!confirm(`Are you sure you want to delete "${slug}"?`)) return;
+      const status = document.getElementById("delete-status");
+      status.textContent = "Deleting...";
+      try {
+        const res = await fetch("/api/posts", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ slug }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Delete failed");
+        status.textContent = "Deleted! Redirecting...";
+        window.location.href = "/";
+      } catch (err) {
+        status.textContent = err.message || "Delete failed.";
+      }
+    });
+  }
+</script>
+
+<style>
+  .dynamo-body p {
+    margin-bottom: 1.25rem;
+    line-height: 1.7;
+  }
+  .dynamo-body img {
+    display: block;
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+  }
+  .admin-actions {
+    margin-top: 2rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border, #333);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .delete-btn {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  .delete-btn:hover {
+    background: #b91c1c;
+  }
+</style>

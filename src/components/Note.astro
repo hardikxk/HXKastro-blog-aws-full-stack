@@ -1,0 +1,9 @@
+---
+interface Props { title?: string; type?: "note" | "aside" | "warning"; }
+const { title = "A note from the margin", type = "note" } = Astro.props;
+---
+
+<aside class:list={["margin-note", `margin-note--${type}`]} aria-label={title}>
+  <span class="margin-note-label">{title}</span>
+  <div><slot /></div>
+</aside>

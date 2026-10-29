@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 320" fill="none">
+  <defs><linearGradient id="g" x1="100" y1="50" x2="860" y2="260" gradientUnits="userSpaceOnUse"><stop stop-color="#78A9FF"/><stop offset=".5" stop-color="#BE95FF"/><stop offset="1" stop-color="#42BE65"/></linearGradient></defs>
+  <rect width="960" height="320" rx="20" fill="#161616"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" text-anchor="middle"><text x="170" y="260" fill="#F2F4F8" font-size="22">an idea</text><text x="480" y="260" fill="#F2F4F8" font-size="22">a draft</text><text x="790" y="260" fill="#F2F4F8" font-size="22">a page</text></g>
+  <circle cx="170" cy="145" r="49" stroke="url(#g)" stroke-width="4"/><path d="M153 157c12-32 42-25 28-52m-30 40c-12-24 8-40 20-46" stroke="#78A9FF" stroke-width="5" stroke-linecap="round"/>
+  <path d="M250 145h122m-20-13 20 13-20 13" stroke="#8A3FFC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="410" y="81" width="140" height="128" rx="12" stroke="#BE95FF" stroke-width="4"/><path d="M440 119h80m-80 26h80m-80 26h54" stroke="#D0BFFF" stroke-width="7" stroke-linecap="round"/>
+  <path d="M580 145h122m-20-13 20 13-20 13" stroke="#42BE65" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M740 86h95l34 34v112H740z" stroke="#42BE65" stroke-width="4"/><path d="M835 86v34h34M770 154h66m-66 28h42" stroke="#8DE6A8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

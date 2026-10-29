@@ -1,0 +1,95 @@
+---
+title: "A clear, specific title"
+description: "One or two sentences explaining why this note is worth a reader’s time."
+published: 2026-08-09
+updated: 2026-08-09
+tags: ["topic", "another-topic"]
+readingTime: "8 min read"
+draft: true
+featured: false
+# hero: "/images/your-hero.webp"
+---
+
+import Note from "../../components/Note.astro";
+import Callout from "../../components/Callout.astro";
+import Figure from "../../components/Figure.astro";
+
+> “Put a short quotation, observation, or epigraph here.”
+>
+> — Attribution
+
+Start with the reader’s question. MDX is normal Markdown with the option to use HTML and components when the post needs something more expressive.
+
+## A section heading
+
+Use paragraphs, **strong text**, _emphasis_, [links](https://example.com), ordered lists, bullet lists, and footnotes.[^1]
+
+<Note title="A margin note" type="aside">
+  Put a `Note` directly after the paragraph, list, figure, code block, or other block it adds context to. It automatically occupies that block’s matching margin row on wide screens, and becomes an inset note on phones.
+</Note>
+
+### Code snippets
+
+Astro highlights fenced code during the build. Add a language after the fence and, optionally, a title.
+
+```ts title="example.ts"
+export const greet = (name: string) => `Hello, ${name}.`;
+```
+
+### Images and GIFs
+
+For a standard image, use Markdown:
+
+![A useful description of the image](/images/example.webp)
+
+For a caption, use the `Figure` component. Figures always stay within the article’s fixed reading measure:
+
+<Figure src="/images/example.webp" alt="Describe what a reader should notice." caption="An optional caption." wide />
+
+GIFs work exactly the same way. Keep them compressed and use a short clip when possible:
+
+![A small animated demonstration](/images/demo.gif)
+
+### Video, audio, and embeds
+
+Native HTML works in MDX. Keep a poster image on videos so the page remains quick to paint.
+
+<video controls preload="metadata" poster="/images/video-poster.webp">
+  <source src="/videos/demo.mp4" type="video/mp4" />
+  Your browser does not support video.
+</video>
+
+You can also use an `iframe` for a sandboxed external demo. Give it a meaningful title and keep the embed only when it adds more than a screenshot would.
+
+### SVGs and diagrams
+
+Use a local SVG as an image:
+
+<Figure src="/diagrams/my-diagram.svg" alt="Diagram description." caption="What the diagram demonstrates." />
+
+Or write a small accessible SVG inline:
+
+<svg viewBox="0 0 360 100" role="img" aria-label="A three step process">
+  <rect x="8" y="30" width="86" height="40" rx="8" fill="#0f62fe" />
+  <path d="M108 50h54" stroke="currentColor" stroke-width="2" />
+  <rect x="174" y="30" width="86" height="40" rx="8" fill="#da1e28" />
+  <path d="M274 50h54" stroke="currentColor" stroke-width="2" />
+  <rect x="266" y="30" width="86" height="40" rx="8" fill="#24a148" />
+</svg>
+
+### Tables
+
+| Question | Answer |
+| --- | --- |
+| Is it static? | Yes. |
+| Can I extend it? | Yes, with MDX components. |
+
+<Callout title="Keep this nearby" kind="idea">
+  Callouts are good for a conclusion, an important caveat, or a practical next step.
+</Callout>
+
+## Closing section
+
+End by returning to the opening question, then delete any sections you did not need. A good post does not have to use every feature.
+
+[^1]: GitHub-flavored Markdown footnotes are supported. Keep them brief; substantive asides work better as `Note` components.

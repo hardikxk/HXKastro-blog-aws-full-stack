@@ -1,0 +1,71 @@
+---
+title: "Small systems deserve a generous interface"
+description: "A blog starter that treats reading as the product: calm typography, spacious margins, fast pages, and a few well-chosen interaction details."
+published: 2026-08-09
+tags: ["design", "software", "notes"]
+readingTime: "7 min read"
+featured: true
+---
+
+import Note from "../../components/Note.astro";
+import Callout from "../../components/Callout.astro";
+import Figure from "../../components/Figure.astro";
+
+> “Good tools get quieter as your attention becomes more valuable.”
+>
+> — a principle worth borrowing
+
+Most personal sites do not need a framework that ships a miniature application before the first sentence appears. They need a reliable publishing surface: one that opens quickly, gives prose enough room to breathe, and makes images, code, and asides feel like they belong together.
+
+This starter takes that idea seriously. The page is generated as static HTML and uses a few small browser features only after it has painted. There is no client-side router, no font download, and no interface library standing between a reader and the text.
+
+<Note title="Why the margin exists" type="aside">
+  Desktop readers can glance at a supporting thought without losing their place. On a narrow screen, this note moves into the flow so it is never lost.
+</Note>
+
+## The interface should disappear
+
+An article page needs a sense of orientation, not a dashboard. The outline on the right tells you where you are, while the quiet progress line gives a faithful indication of what remains. It intentionally stays out of the line length of the article itself.
+
+The interface becomes even more restrained on a phone. The progress bar moves to the top edge, margin notes become inset blocks, and generous tap targets replace hover-only affordances. At the very end of a post, a horizontal swipe can move between adjacent notes.
+
+<Callout title="A useful constraint" kind="tip">
+  Keep each page’s essential content available with JavaScript disabled. Enhancements should make reading nicer, never make it possible.
+</Callout>
+
+## Code is part of the prose
+
+The design reserves a distinct surface for code, with enough contrast to scan but without a bright rectangle fighting every paragraph. Astro highlights fenced code blocks at build time, so there is no syntax-highlighting bundle for visitors to download.
+
+```ts title="focus.ts"
+type Attention = "reading" | "navigating";
+
+export function removeFriction(mode: Attention) {
+  return mode === "reading" ? "make space" : "make direction";
+}
+```
+
+### A diagram can be a first-class thought
+
+Whether it is a hand-drawn SVG, a dense architecture chart, or a short animation, visual material should have the same visual rhythm as text. The `Figure` component below works with local files and remote image URLs alike.
+
+<Figure
+  src="/diagrams/idea-to-page.svg"
+  alt="A simple diagram showing an idea moving through a draft to a finished page."
+  caption="A page with less machinery leaves more room for the idea."
+  wide
+/>
+
+## Markdown, with an escape hatch
+
+Write ordinary Markdown for most posts. When the story needs a video, GIF, responsive image, embedded demo, custom SVG, or a special component, change the extension to `.mdx` and place the HTML or component directly in the file. Nothing needs to be copied into a CMS.
+
+1. Add a file in `src/content/posts/`.
+2. Give it a title, date, description, tags, and reading time.
+3. Push the repository; the hosting provider builds a complete static site.
+
+## The slow parts belong at build time
+
+Static sites are not only fast because their pages are small. They also keep failure modes honest. A post has no database connection to time out, no feed client that has to hydrate, and no analytics script that gets to decide when a reader can scroll.
+
+That restraint produces a site that is pleasant to return to years later. Which is, in the end, the most useful feature a personal archive can offer.

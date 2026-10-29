@@ -1,0 +1,22 @@
+---
+interface Heading { depth: number; slug: string; text: string; }
+interface Props { headings: Heading[]; title: string; }
+const { headings, title } = Astro.props;
+const outline = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+---
+
+<aside class="reading-outline" aria-label="On this page" data-reading-outline>
+  <div class="reading-outline-top">
+    <span>Reading</span>
+    <span data-progress-label>0%</span>
+  </div>
+  <strong>{title}</strong>
+  <div class="outline-progress"><i data-progress-fill></i></div>
+  <nav aria-label="Article sections">
+    {outline.map((heading) => (
+      <a href={`#${heading.slug}`} data-toc-link={heading.slug} class:list={{ "outline-subsection": heading.depth === 3 }}>
+        {heading.text}
+      </a>
+    ))}
+  </nav>
+</aside>

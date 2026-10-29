@@ -1,0 +1,292 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Write Post - Admin Portal">
+  <div class="editor-container">
+    <div class="editor-header">
+      <div>
+        <span class="badge">Cognito Protected</span>
+        <h1>Publish New Note</h1>
+      </div>
+      <div class="header-nav-actions">
+        <a href="/admin" class="nav-btn">📋 Manage Posts</a>
+        <button type="button" id="logout-btn" class="logout-btn">Log out</button>
+      </div>
+    </div>
+
+    <p id="auth-check" class="auth-warning">Verifying admin session...</p>
+
+    <form id="post-form" class="post-form" hidden>
+      <div class="form-group">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" placeholder="e.g. Modern Systems at Scale" required />
+      </div>
+
+      <div class="form-group">
+        <label for="description">Summary / Deck</label>
+        <input type="text" id="description" name="description" placeholder="A short one-line description of the post" />
+      </div>
+
+      <div class="form-group">
+        <label for="tags">Tags (comma-separated)</label>
+        <input type="text" id="tags" name="tags" placeholder="aws, devops, architecture" />
+      </div>
+
+      <div class="upload-widget">
+        <label for="image-file">
+          <strong>Upload Image to S3 Media Bucket</strong>
+          <span>Generates a presigned S3 URL; automatically processed by Lambda thumbnail generator</span>
+        </label>
+        <input type="file" id="image-file" accept="image/*" />
+        <p id="upload-status" class="status-text"></p>
+      </div>
+
+      <div class="form-group">
+        <label for="body">Content (Markdown / MDX)</label>
+        <textarea id="body" name="body" rows="14" placeholder="Write your post content in Markdown here..." required></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" id="publish-btn" class="publish-btn">Publish to DynamoDB</button>
+        <p id="post-status" class="status-text"></p>
+      </div>
+    </form>
+  </div>
+</BaseLayout>
+
+<script>
+  const authCheck = document.getElementById("auth-check");
+  const form = document.getElementById("post-form");
+  const postStatus = document.getElementById("post-status");
+  const uploadStatus = document.getElementById("upload-status");
+  const fileInput = document.getElementById("image-file");
+  const logoutBtn = document.getElementById("logout-btn");
+  const bodyField = document.getElementById("body");
+
+  const token = sessionStorage.getItem("idToken");
+
+  if (!token) {
+    if (authCheck) {
+      authCheck.innerHTML = 'Authentication required. <a href="/admin">Log in to Cognito</a> first.';
+    }
+  } else {
+    if (authCheck) authCheck.hidden = true;
+    if (form) form.hidden = false;
+  }
+
+  logoutBtn?.addEventListener("click", () => {
+    sessionStorage.removeItem("idToken");
+    window.location.href = "/admin";
+  });
+
+  // Handle direct presigned S3 upload
+  fileInput?.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file || !uploadStatus) return;
+
+    uploadStatus.textContent = "Requesting presigned upload URL from backend...";
+    try {
+      const urlRes = await fetch("/api/upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ filename: file.name, contentType: file.type }),
+      });
+
+      const data = await urlRes.json();
+      if (!urlRes.ok) throw new Error(data.error || "Failed to get upload URL");
+
+      uploadStatus.textContent = "Uploading image directly to S3...";
+
+      const putRes = await fetch(data.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!putRes.ok) throw new Error("Direct S3 PUT failed");
+
+      uploadStatus.innerHTML = `Uploaded! CloudFront URL: <code>${data.originalUrl}</code><br/>Thumbnail: <code>${data.thumbnailUrl}</code>`;
+
+      // Prepend markdown image snippet to body textarea
+      if (bodyField) {
+        bodyField.value = `![${file.name}](${data.originalUrl})\n\n` + bodyField.value;
+      }
+    } catch (err) {
+      uploadStatus.textContent = err.message || "Upload failed.";
+    }
+  });
+
+  // Handle post publish
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!postStatus) return;
+    const data = new FormData(form);
+    const title = data.get("title");
+    const description = data.get("description");
+    const body = data.get("body");
+    const rawTags = (data.get("tags") || "");
+    const tags = rawTags.split(",").map((t) => t.trim()).filter(Boolean);
+
+    postStatus.textContent = "Publishing to DynamoDB...";
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title, description, body, tags }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to publish post");
+
+      postStatus.textContent = "Published! Redirecting to post...";
+      window.location.href = `/posts/${result.slug}`;
+    } catch (err) {
+      postStatus.textContent = err.message || "Publishing failed.";
+    }
+  });
+</script>
+
+<style>
+  .editor-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  .editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+  }
+  .editor-header h1 {
+    font-size: 2rem;
+    margin: 0.5rem 0 0;
+  }
+  .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--surface-strong, #262626);
+    color: var(--yellow, #ffe97b);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--line, #393939);
+  }
+  .header-nav-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .nav-btn {
+    padding: 0.4rem 0.9rem;
+    background: var(--surface-strong, #262626);
+    border: 1px solid var(--line, #393939);
+    color: var(--ink, #f4f4f4);
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.2s;
+  }
+  .nav-btn:hover {
+    background: #333;
+  }
+  .logout-btn {
+    padding: 0.4rem 0.9rem;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    color: var(--muted, #8d8d8d);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .logout-btn:hover {
+    color: var(--ink, #f4f4f4);
+  }
+  .auth-warning {
+    color: var(--pink, #ff7eb6);
+    font-size: 1rem;
+  }
+  .post-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  label {
+    font-size: 0.9rem;
+    color: var(--muted, #c6c6c6);
+    font-weight: 500;
+  }
+  input[type="text"], textarea {
+    padding: 0.75rem;
+    background: var(--surface, #1f1f1f);
+    border: 1px solid var(--line, #393939);
+    border-radius: 6px;
+    color: var(--ink, #f4f4f4);
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--blue, #78a9ff);
+  }
+  .upload-widget {
+    background: var(--surface, #1f1f1f);
+    border: 1px dashed var(--line-strong, #525252);
+    border-radius: 8px;
+    padding: 1.25rem;
+  }
+  .upload-widget label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    cursor: pointer;
+    margin-bottom: 0.75rem;
+  }
+  .upload-widget label span {
+    font-size: 0.8rem;
+    color: var(--muted, #8d8d8d);
+  }
+  .publish-btn {
+    padding: 0.8rem 2rem;
+    background: var(--blue, #78a9ff);
+    color: #161616;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+  .publish-btn:hover {
+    filter: brightness(1.1);
+  }
+  .status-text {
+    font-size: 0.85rem;
+    color: var(--muted, #8d8d8d);
+    word-break: break-all;
+  }
+  .status-text code {
+    background: var(--bg, #161616);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    color: var(--cyan, #33b1ff);
+  }
+</style>
