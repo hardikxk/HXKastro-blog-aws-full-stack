@@ -43,8 +43,10 @@ try {
             $env:AWS_SECRET_ACCESS_KEY = $credsJson.SecretAccessKey
             if ($credsJson.SessionToken) {
                 $env:AWS_SESSION_TOKEN = $credsJson.SessionToken
+            } else {
+                Remove-Item env:AWS_SESSION_TOKEN -ErrorAction SilentlyContinue
             }
-            Write-Host "  [OK] Exported AWS session credentials to environment for Terraform." -ForegroundColor Green
+            Write-Host "  [OK] Exported AWS credentials to environment for Terraform." -ForegroundColor Green
         }
     }
 } catch {

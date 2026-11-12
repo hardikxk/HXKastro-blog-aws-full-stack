@@ -7,17 +7,17 @@
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-success?style=flat&logo=amazon-aws&logoColor=white)](http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-success?style=flat&logo=amazon-aws&logoColor=white)](http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/)
 
 A **production-grade, multi-tier cloud application and publishing platform** built from the ground up on AWS.
 
 It features containerized server-side rendering (SSR), decoupled microservices on serverless containers, high-performance single-table NoSQL modeling, an event-driven media processing pipeline, and automated Infrastructure as Code (IaC) via Terraform.
 
 > 🌐 **Live Deployed Stack**:
-> - **Live Blog Web App**: [http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com](http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com)
-> - **Comments Microservice (ECS Fargate)**: `http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com/api/comments`
-> - **Media CloudFront CDN**: [https://d22vymvrbfkme.cloudfront.net](https://d22vymvrbfkme.cloudfront.net)
-> - **Newsletter API Gateway**: `https://tmaqjpfewc.execute-api.ap-southeast-2.amazonaws.com/subscribe`
+> - **Live Blog Web App**: [http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com](http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com)
+> - **Comments Microservice (ECS Fargate)**: `http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/api/comments`
+> - **Media CloudFront CDN**: [https://d1ao4t7pgbfkt5.cloudfront.net](https://d1ao4t7pgbfkt5.cloudfront.net)
+> - **Newsletter API Gateway**: `https://d6batvanv9.execute-api.ap-southeast-2.amazonaws.com/subscribe`
 
 ---
 
@@ -151,7 +151,7 @@ This project includes a built-in management utility:
 
 ## 🧪 Post-Deployment Verification Tour
 
-1. **Visit Blog**: Navigate to [http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com/](http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com/) and verify dynamic server-side rendering and articles.
+1. **Visit Blog**: Navigate to [http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/](http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/) and verify dynamic server-side rendering and articles.
 2. **Atomic Views**: Click into any post; observe the real-time view counter incrementing in DynamoDB.
 3. **Comments Microservice**: Scroll down to the **Discussion** section and submit a comment. Notice the instant asynchronous post to the ECS Fargate container.
 4. **Serverless Newsletter**: Enter an email in the subscription box; verify API Gateway -> Lambda -> DynamoDB -> SNS -> SQS pipeline execution.
@@ -160,7 +160,7 @@ This project includes a built-in management utility:
      ```powershell
      .\manage.ps1 create-user
      ```
-   - Log in at [http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com/admin](http://astro-blog-alb-806893944.ap-southeast-2.elb.amazonaws.com/admin).
+   - Log in at [http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/admin](http://astro-blog-alb-458388419.ap-southeast-2.elb.amazonaws.com/admin).
    - Publish a new article with an uploaded image.
    - Delete an article and verify instant removal from DynamoDB and the homepage.
 
